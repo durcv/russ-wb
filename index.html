@@ -1,4 +1,4 @@
-<!DOCTYPE html><html><head><base href="https://example.com/slavic-base-raider/"><title>Славянский Рейдер Баз</title>
+<!DOCTYPE html><html><head><base href="https://mpsell.com/"><title>Руссы против Вайлдберрис</title>
 <style>
 body, html {
     margin: 0;
@@ -40,7 +40,7 @@ body, html {
 </head>
 <body>
 <canvas id="gameCanvas" width="100%" height="100%"></canvas>
-<div id="score">Складов захвачено: 0<br>Денег: 0 ₽</div>
+<div id="score">Складов захвачено: 0<br>Суммарно активов: 0 ₽</div>
 <button id="captureBtn">Рейдерский захват</button>
 
 <script>
@@ -257,14 +257,14 @@ function update() {
         const dy = player.y - house.y;
         const distance = Math.sqrt(dx*dx + dy*dy);
         if (distance < player.size) {
-            money += 1;
+            money += 11;
             updateScore();
         }
     });
     
     ctx.fillStyle = '#000000';
     ctx.font = '16px Courier New';
-    ctx.fillText('Цель: захватить 1000 складов', 10, canvas.height - 10);
+    ctx.fillText('Цель: захват 1000 складов', 10, canvas.height - 10);
     
     ctx.fillStyle = '#ff0000';
     ctx.font = 'bold 24px Arial';
@@ -321,7 +321,7 @@ captureBtn.addEventListener('click', () => {
     });
     
     if (score >= 1000) {
-        alert('Поздравляем! Вы собрали 1000 очков и победили в игре!');
+        alert('Ух, похоже вы реальный Русс. Заработали много капитала, можно и открыть свой бизнес с mpsell.com');
         score = 0;
         money = 0;
         bases = [];
