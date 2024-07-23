@@ -1,0 +1,357 @@
+<!DOCTYPE html><html><head><base href="https://example.com/slavic-base-raider/"><title>Славянский Рейдер Баз</title>
+<style>
+body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: 'Courier New', monospace;
+    background: #ffffff;
+    color: #2c3e50;
+    overflow: hidden;
+}
+#gameCanvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+#score {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 20px;
+    z-index: 10;
+}
+#captureBtn {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 10px 20px;
+    font-size: 16px;
+    background: #e74c3c;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    z-index: 10;
+}
+</style>
+</head>
+<body>
+<canvas id="gameCanvas" width="100%" height="100%"></canvas>
+<div id="score">Складов захвачено: 0<br>Денег: 0 ₽</div>
+<button id="captureBtn">Рейдерский захват</button>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const scoreElement = document.getElementById('score');
+const captureBtn = document.getElementById('captureBtn');
+
+// Устанавливаем размеры canvas на всю страницу
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let score = 0;
+let money = 0;
+let player = { x: canvas.width / 2, y: canvas.height / 2, size: 32 };
+let bases = [];
+let policeCars = [];
+let showMessage = false;
+let messageTimer = null;
+let fasOfficers = [];
+let redHouses = [];
+
+// Создаем градиентный фон
+function createBackground() {
+    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    gradient.addColorStop(0, '#f0f0f0');
+    gradient.addColorStop(1, '#e0e0e0');
+    return gradient;
+}
+
+function drawPixelArt(x, y, size, color, pixels) {
+    const pixelSize = size / pixels.length;
+    pixels.forEach((row, i) => {
+        row.forEach((pixel, j) => {
+            if (pixel) {
+                ctx.fillStyle = color;
+                ctx.fillRect(x + j * pixelSize, y + i * pixelSize, pixelSize, pixelSize);
+            }
+        });
+    });
+}
+
+function drawPlayer() {
+    const playerPixels = [
+        [0,0,1,1,1,0,0],
+        [0,1,1,1,1,1,0],
+        [0,1,1,1,1,1,0],
+        [0,0,1,1,1,0,0],
+        [0,1,1,1,1,1,0],
+        [1,1,1,1,1,1,1],
+        [1,0,1,1,1,0,1]
+    ];
+    drawPixelArt(player.x, player.y, player.size, '#ff0000', playerPixels);
+}
+
+function drawBase(base) {
+    const basePixels = [
+        [0,1,1,1,1,1,0],
+        [1,1,1,1,1,1,1],
+        [1,0,1,0,1,0,1],
+        [1,1,1,1,1,1,1],
+        [1,1,1,1,1,1,1],
+        [1,0,1,0,1,0,1],
+        [1,1,1,1,1,1,1]
+    ];
+    drawPixelArt(base.x, base.y, base.size, '#800080', basePixels);
+}
+
+function drawPoliceCar(car) {
+    const carPixels = [
+        [0,0,1,1,1,0,0],
+        [0,1,1,1,1,1,0],
+        [1,1,1,1,1,1,1],
+        [1,1,1,1,1,1,1],
+        [0,1,0,1,0,1,0],
+        [0,1,1,1,1,1,0],
+        [0,1,0,0,0,1,0]
+    ];
+    drawPixelArt(car.x, car.y, car.size, '#0000ff', carPixels);
+}
+
+function drawFasOfficer(officer) {
+    const officerPixels = [
+        [0,1,1,1,1,1,0],
+        [1,1,1,1,1,1,1],
+        [1,0,1,1,1,0,1],
+        [0,1,1,1,1,1,0],
+        [0,0,1,1,1,0,0],
+        [0,1,1,1,1,1,0],
+        [1,1,0,0,0,1,1]
+    ];
+    drawPixelArt(officer.x, officer.y, officer.size, '#000000', officerPixels);
+}
+
+function drawRedHouse(house) {
+    const housePixels = [
+        [0,0,1,1,1,0,0],
+        [0,1,1,1,1,1,0],
+        [1,1,1,1,1,1,1],
+        [1,1,1,1,1,1,1],
+        [1,0,1,1,1,0,1],
+        [1,0,1,1,1,0,1],
+        [1,1,1,1,1,1,1]
+    ];
+    drawPixelArt(house.x, house.y, house.size, '#ff0000', housePixels);
+}
+
+function spawnBase() {
+    if (bases.length < 5) {
+        bases.push({
+            x: Math.random() * (canvas.width - 32),
+            y: Math.random() * (canvas.height - 32),
+            size: 32
+        });
+    }
+}
+
+function spawnPoliceCar() {
+    if (policeCars.length < 3) {
+        policeCars.push({
+            x: Math.random() * (canvas.width - 32),
+            y: Math.random() * (canvas.height - 32),
+            size: 32,
+            dx: (Math.random() - 0.5) * 4,
+            dy: (Math.random() - 0.5) * 4
+        });
+    }
+}
+
+function movePoliceCars() {
+    policeCars.forEach(car => {
+        car.x += car.dx;
+        car.y += car.dy;
+
+        if (car.x <= 0 || car.x >= canvas.width - car.size) car.dx = -car.dx;
+        if (car.y <= 0 || car.y >= canvas.height - car.size) car.dy = -car.dy;
+
+        const dx = player.x - car.x;
+        const dy = player.y - car.y;
+        const distance = Math.sqrt(dx*dx + dy*dy);
+        if (distance < player.size) {
+            resetGame("Вас поймала полиция, придется начать заново");
+        }
+    });
+}
+
+function spawnFasOfficers() {
+    fasOfficers = [
+        { x: -32, y: Math.random() * canvas.height, size: 32, speed: 5 },
+        { x: -64, y: Math.random() * canvas.height, size: 32, speed: 5 },
+        { x: -96, y: Math.random() * canvas.height, size: 32, speed: 5 }
+    ];
+}
+
+function moveFasOfficers() {
+    fasOfficers.forEach(officer => {
+        officer.x += officer.speed;
+
+        const dx = player.x - officer.x;
+        const dy = player.y - officer.y;
+        const distance = Math.sqrt(dx*dx + dy*dy);
+        if (distance < player.size) {
+            resetGame("Вас поймал ФАС");
+        }
+
+        if (officer.x > canvas.width) {
+            fasOfficers = fasOfficers.filter(o => o !== officer);
+        }
+    });
+}
+
+function resetGame(message) {
+    score = 0;
+    money = 0;
+    updateScore();
+    showMessage = true;
+    clearTimeout(messageTimer);
+    messageTimer = setTimeout(() => {
+        showMessage = false;
+    }, 2000);
+    
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 24px Arial';
+    const messageWidth = ctx.measureText(message).width;
+    ctx.fillText(message, (canvas.width - messageWidth) / 2, canvas.height / 2);
+}
+
+function updateScore() {
+    scoreElement.innerHTML = `Складов захвачено: ${score}<br>Денег: ${money} ₽`;
+}
+
+function update() {
+    // Рисуем градиентный фон
+    ctx.fillStyle = createBackground();
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    drawPlayer();
+    bases.forEach(drawBase);
+    policeCars.forEach(drawPoliceCar);
+    fasOfficers.forEach(drawFasOfficer);
+    redHouses.forEach(drawRedHouse);
+    
+    if (Math.random() < 0.02) spawnBase();
+    if (Math.random() < 0.01) spawnPoliceCar();
+    
+    movePoliceCars();
+    moveFasOfficers();
+    
+    // Начисление денег при касании красного дома
+    redHouses.forEach(house => {
+        const dx = player.x - house.x;
+        const dy = player.y - house.y;
+        const distance = Math.sqrt(dx*dx + dy*dy);
+        if (distance < player.size) {
+            money += 1;
+            updateScore();
+        }
+    });
+    
+    ctx.fillStyle = '#000000';
+    ctx.font = '16px Courier New';
+    ctx.fillText('Цель: захватить 1000 складов', 10, canvas.height - 10);
+    
+    ctx.fillStyle = '#ff0000';
+    ctx.font = 'bold 24px Arial';
+    const gameTitle = 'Руссы против Вайлдберрис';
+    const titleWidth = ctx.measureText(gameTitle).width;
+    ctx.fillText(gameTitle, (canvas.width - titleWidth) / 2, 30);
+    
+    if (showMessage) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 24px Arial';
+        const message = 'Вас поймала полиция, придется начать заново';
+        const messageWidth = ctx.measureText(message).width;
+        ctx.fillText(message, (canvas.width - messageWidth) / 2, canvas.height / 2);
+    }
+    
+    requestAnimationFrame(update);
+}
+
+document.addEventListener('keydown', (e) => {
+    const speed = 10;
+    switch(e.key.toLowerCase()) {
+        case 'arrowup':
+        case 'w':
+            player.y = Math.max(0, player.y - speed);
+            break;
+        case 'arrowdown':
+        case 's':
+            player.y = Math.min(canvas.height - player.size, player.y + speed);
+            break;
+        case 'arrowleft':
+        case 'a':
+            player.x = Math.max(0, player.x - speed);
+            break;
+        case 'arrowright':
+        case 'd':
+            player.x = Math.min(canvas.width - player.size, player.x + speed);
+            break;
+    }
+});
+
+captureBtn.addEventListener('click', () => {
+    bases = bases.filter(base => {
+        const dx = player.x - base.x;
+        const dy = player.y - base.y;
+        const distance = Math.sqrt(dx*dx + dy*dy);
+        if (distance < player.size) {
+            score++;
+            updateScore();
+            return false;
+        }
+        return true;
+    });
+    
+    if (score >= 1000) {
+        alert('Поздравляем! Вы собрали 1000 очков и победили в игре!');
+        score = 0;
+        money = 0;
+        bases = [];
+        policeCars = [];
+        fasOfficers = [];
+        updateScore();
+    }
+});
+
+window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    player.x = canvas.width / 2;
+    player.y = canvas.height / 2;
+});
+
+setInterval(spawnFasOfficers, 30000);
+
+function createRedHouses() {
+    for (let i = 0; i < 3; i++) {
+        redHouses.push({
+            x: Math.random() * (canvas.width - 32),
+            y: Math.random() * (canvas.height - 32),
+            size: 32
+        });
+    }
+}
+
+createRedHouses();
+
+update();
+</script>
+</body></html>
